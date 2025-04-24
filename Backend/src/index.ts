@@ -1,12 +1,18 @@
 import express from "express";
 const app = express();
+import mongoose from "mongoose";
+import dotenv from "dotenv";
+dotenv.config();
 
-const port = 3000;
+app.use(express.json());
 
-app.get("/login", (req, res) => {
-  res.send("Hello World");
+app.post("/api/v1/signup", (req, res) => {
+  const username = req.body.username;
+  const password = req.body.password;
+
+  res.send("welcome bro");
 });
 
-app.listen(port, () => {
-  console.log(`Example app listening on port ${port}`);
+app.listen(process.env.PORT, () => {
+  console.log(`Example app listening on port ${process.env.PORT}`);
 });
