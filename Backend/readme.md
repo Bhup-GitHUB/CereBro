@@ -11,6 +11,7 @@ This document outlines all available API endpoints for the Brain App, including 
 - [Content Management](#content-management)
   - [Get Content](#get-content)
   - [Create Content](#create-content)
+  - [Delete Content](#delete-content)
 - [Brain Sharing](#brain-sharing)
   - [Share Brain](#share-brain)
   - [Access Shared Brain](#access-shared-brain)
@@ -183,6 +184,47 @@ Add a new content item to your brain.
 // 500 - Server error
 {
   "error": "Failed to create content"
+}
+
+// 401 - Authentication error
+{
+  "message": "Invalid token"
+}
+```
+
+### Delete Content
+
+Remove a content item from your brain.
+
+**Endpoint:** `DELETE /api/v1/content`
+
+**Authentication:** Required
+
+**Request:**
+
+```json
+{
+  "title": "Interesting Article",
+  "link": "https://example.com/article",
+  "tags": ["tag_id_1", "tag_id_2"]
+}
+```
+
+**Response:**
+
+```json
+{
+  "acknowledged": true,
+  "deletedCount": 1
+}
+```
+
+**Error Response:**
+
+```json
+// 500 - Server error
+{
+  "error": "Failed to delete content"
 }
 
 // 401 - Authentication error

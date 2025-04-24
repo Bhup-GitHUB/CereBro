@@ -201,6 +201,27 @@ app.get("/api/v1/brain/:shareLink", async (req: Request, res: Response) => {
   }
 });
 
+app.delete(
+  "/api/v1/content",
+  AuthMiddleware,
+  async (req: Request, res: Response) => {
+    const { title, link, tags } = req.body;
+    const userId = (req as any).userID;
+    try {
+      const newContent = await ContentModel.deleteOne({
+        title,
+        link,
+        tags,
+        userID: userId,
+      });
+      res.status(200).json(newContent);
+    } catch (error) {
+      console.error("Error deleting content:", error);
+      res.status(500).json({ error: "Failed to delete content" });
+    }
+  }
+);
+
 app.listen(process.env.PORT, () => {
   console.log(`Example app listening on port ${process.env.PORT}`);
 });
