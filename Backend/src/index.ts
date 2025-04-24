@@ -3,33 +3,46 @@ const app = express();
 import mongoose from "mongoose";
 import jwt from "jsonwebtoken";
 import { connectToDB, UserModel } from "./db";
-import { JWT_SECRET } from "./config";
+import { JWT_SECRET, PORT } from "./config";
 import { Request, Response } from "express";
 import bcrypt from "bcryptjs";
-import { ContentModel, ShareModel } from "./db";
-import { AuthMiddleware } from "./middleware";
+import { ContentModel, ShareModel, TagModel } from "./db";
+import { AuthMiddleware, validateSignupInputs } from "./middleware";
 import { randomBytes } from "crypto";
 
 app.use(express.json());
 
 connectToDB();
 
-app.post("/api/v1/signup", async (req: Request, res: Response) => {
-  const { username, password } = req.body;
-  const hashedPassword = await bcrypt.hash(password, 10);
+app.post(
+  "/api/v1/signup",
+  validateSignupInputs,
+  async (req: Request, res: Response) => {
+    const { username, password } = req.body;
 
-  try {
-    await UserModel.create({ username, password: hashedPassword });
+    try {
+      const existingUser = await UserModel.findOne({ username });
+      if (existingUser) {
+        res.status(403).json({
+          message: "User already exists with this username",
+        });
+        return;
+      }
 
-    res.json({
-      message: "User created successfully",
-    });
-  } catch (e) {
-    res.status(411).json({
-      message: "User already exists or error occurred",
-    });
+      const hashedPassword = await bcrypt.hash(password, 10);
+      await UserModel.create({ username, password: hashedPassword });
+
+      res.status(200).json({
+        message: "Signed up",
+      });
+    } catch (e) {
+      console.error("Signup error:", e);
+      res.status(500).json({
+        message: "Server error",
+      });
+    }
   }
-});
+);
 
 app.post("/api/v1/signin", async (req: Request, res: Response) => {
   const { username, password } = req.body;
@@ -38,20 +51,20 @@ app.post("/api/v1/signin", async (req: Request, res: Response) => {
     const user = await UserModel.findOne({ username });
 
     if (!user) {
-      res.status(404).json({ message: "User not found" });
+      res.status(403).json({ message: "Wrong email password" });
       return;
     }
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
-      res.status(401).json({ message: "Invalid password" });
+      res.status(403).json({ message: "Wrong email password" });
       return;
     }
     const token = jwt.sign({ id: user._id }, JWT_SECRET, { expiresIn: "1h" });
 
-    res.json({ message: "Signin successful", token });
+    res.status(200).json({ token });
   } catch (e) {
     console.error("Signin error:", e);
-    res.status(500).json({ message: "Something went wrong" });
+    res.status(500).json({ message: "Internal server error" });
   }
 });
 
@@ -60,11 +73,19 @@ app.get(
   AuthMiddleware,
   async (req: Request, res: Response) => {
     try {
-      const contents = await ContentModel.find()
+      const contents = await ContentModel.find({ userID: (req as any).userID })
         .populate("tags")
-        .populate("userID");
+        .populate("userID", "username");
 
-      res.status(200).json(contents);
+      const formattedContents = contents.map((content: any) => ({
+        id: content._id,
+        type: content.type,
+        link: content.link,
+        title: content.title,
+        tags: content.tags.map((tag: any) => tag.name),
+      }));
+
+      res.status(200).json({ content: formattedContents });
     } catch (error) {
       console.error("Error fetching content:", error);
       res.status(500).json({ error: "Failed to fetch content" });
@@ -76,15 +97,32 @@ app.post(
   "/api/v1/content",
   AuthMiddleware,
   async (req: Request, res: Response) => {
-    const { title, link, tags } = req.body;
-    const userId = req.body.userId;
+    const { type, link, title, tags } = req.body;
+    const userID = (req as any).userID;
+
+    if (!["document", "tweet", "youtube", "link"].includes(type)) {
+      res.status(400).json({ error: "Invalid content type" });
+      return;
+    }
 
     try {
+      const tagIds = [];
+      if (tags && Array.isArray(tags)) {
+        for (const tagName of tags) {
+          let tag = await TagModel.findOne({ name: tagName });
+          if (!tag) {
+            tag = await TagModel.create({ name: tagName });
+          }
+          tagIds.push(tag._id);
+        }
+      }
+
       const newContent = await ContentModel.create({
+        type,
         title,
         link,
-        tags,
-        userID: userId,
+        tags: tagIds,
+        userID,
       });
 
       res.status(201).json(newContent);
@@ -130,7 +168,7 @@ app.post(
       });
     } catch (error) {
       console.error("Error managing share:", error);
-      res.status(500).json({ error: "Failed to create share link" });
+      res.status(500).json({ error: "Failed to manage sharing settings" });
     }
   }
 );
@@ -146,7 +184,7 @@ app.get("/api/v1/brain/:shareLink", async (req: Request, res: Response) => {
 
     if (!share) {
       res.status(404).json({
-        error: "Share link not found or sharing is disabled",
+        error: "If the share link is invalid or sharing is disabled",
       });
       return;
     }
@@ -162,29 +200,9 @@ app.get("/api/v1/brain/:shareLink", async (req: Request, res: Response) => {
       .lean();
 
     const formattedContents = contents.map((content) => {
-      let type = "link";
-      if (
-        content.link.includes("youtube.com") ||
-        content.link.includes("youtu.be")
-      ) {
-        type = "youtube";
-      } else if (
-        content.link.includes("twitter.com") ||
-        content.link.includes("x.com")
-      ) {
-        type = "tweet";
-      } else if (
-        content.link.endsWith(".pdf") ||
-        content.link.endsWith(".doc") ||
-        content.link.endsWith(".docx") ||
-        content.title.toLowerCase().includes("document")
-      ) {
-        type = "document";
-      }
-
       return {
         id: content._id,
-        type,
+        type: content.type,
         link: content.link,
         title: content.title,
         tags: content.tags.map((tag: any) => tag.name),
@@ -205,16 +223,25 @@ app.delete(
   "/api/v1/content",
   AuthMiddleware,
   async (req: Request, res: Response) => {
-    const { title, link, tags } = req.body;
-    const userId = (req as any).userID;
+    const { contentId } = req.body;
+    const userID = (req as any).userID;
+
     try {
-      const newContent = await ContentModel.deleteOne({
-        title,
-        link,
-        tags,
-        userID: userId,
-      });
-      res.status(200).json(newContent);
+      const content = await ContentModel.findById(contentId);
+
+      if (!content) {
+        res.status(404).json({ error: "Content not found" });
+        return;
+      }
+
+      if (content.userID.toString() !== userID) {
+        res.status(403).json({ error: "Trying to delete a doc you don't own" });
+        return;
+      }
+
+      await ContentModel.deleteOne({ _id: contentId });
+
+      res.status(200).json({ message: "Delete succeeded" });
     } catch (error) {
       console.error("Error deleting content:", error);
       res.status(500).json({ error: "Failed to delete content" });
@@ -222,6 +249,6 @@ app.delete(
   }
 );
 
-app.listen(process.env.PORT, () => {
-  console.log(`Example app listening on port ${process.env.PORT}`);
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });

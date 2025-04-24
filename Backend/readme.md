@@ -1,249 +1,302 @@
-# Brain App API Documentation
+# Second Brain API
 
-This document outlines all available API endpoints for the Brain App, including request/response formats and authentication requirements.
+This is a RESTful API for a "Second Brain" application that allows users to save and organize content from various sources like documents, tweets, YouTube videos, and general links. Users can also share their content collection with others via shareable links.
 
 ## Table of Contents
 
-- [Authentication](#authentication)
-- [User Management](#user-management)
-  - [Sign Up](#sign-up)
-  - [Sign In](#sign-in)
-- [Content Management](#content-management)
-  - [Get Content](#get-content)
-  - [Create Content](#create-content)
-  - [Delete Content](#delete-content)
-- [Brain Sharing](#brain-sharing)
-  - [Share Brain](#share-brain)
-  - [Access Shared Brain](#access-shared-brain)
+- [Features](#features)
+- [Tech Stack](#tech-stack)
+- [Getting Started](#getting-started)
+  - [Prerequisites](#prerequisites)
+  - [Installation](#installation)
+  - [Environment Variables](#environment-variables)
+- [API Endpoints](#api-endpoints)
+  - [Authentication](#authentication)
+  - [Content Management](#content-management)
+  - [Sharing](#sharing)
+- [Testing Guide](#testing-guide)
+- [Error Handling](#error-handling)
+- [Database Schema](#database-schema)
 
-## Authentication
+## Features
 
-Most endpoints require JWT authentication. Include the token in the request header:
+- User authentication (signup, signin)
+- Content management (create, read, delete)
+- Content organization with tags
+- Content sharing via unique links
+- Content categorization by type (document, tweet, youtube, link)
+
+## Tech Stack
+
+- Node.js
+- Express.js
+- TypeScript
+- MongoDB with Mongoose
+- JWT for authentication
+- bcryptjs for password hashing
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js (v14 or higher)
+- MongoDB
+- npm or yarn
+
+### Environment Variables
+
+Create a `.env` file in the root directory with the following variables:
 
 ```
-Authorization: Bearer YOUR_JWT_TOKEN
+MONGO_URI=your_mongodb_connection_string
+JWT_SECRET=your_jwt_secret_key
+PORT=3000
 ```
 
-## User Management
+## API Endpoints
 
-### Sign Up
+### Authentication
 
-Create a new user account.
+#### Sign Up
 
-**Endpoint:** `POST /api/v1/signup`
-
-**Request:**
-
-```json
-{
-  "username": "example_user",
-  "password": "secure_password123"
-}
-```
-
-**Response:**
-
-```json
-{
-  "message": "User created successfully"
-}
-```
-
-**Error Responses:**
-
-```json
-// 411 - User already exists
-{
-  "message": "User already exists or error occurred"
-}
-```
-
-### Sign In
-
-Authenticate and receive a JWT token.
-
-**Endpoint:** `POST /api/v1/signin`
-
-**Request:**
-
-```json
-{
-  "username": "example_user",
-  "password": "secure_password123"
-}
-```
-
-**Response:**
-
-```json
-{
-  "message": "Signin successful",
-  "token": "your.jwt.token"
-}
-```
-
-**Error Responses:**
-
-```json
-// 404 - User not found
-{
-  "message": "User not found"
-}
-
-// 401 - Invalid password
-{
-  "message": "Invalid password"
-}
-
-// 500 - Server error
-{
-  "message": "Something went wrong"
-}
-```
-
-## Content Management
-
-### Get Content
-
-Retrieve all content items with populated tags and user information.
-
-**Endpoint:** `GET /api/v1/content`
-
-**Authentication:** Required
-
-**Response:**
-
-```json
-[
+- **URL**: `POST /api/v1/signup`
+- **Body**:
+  ```json
   {
-    "_id": "content_id",
-    "title": "Example Content",
-    "link": "https://example.com/resource",
-    "tags": [
-      {
-        "_id": "tag_id",
-        "name": "productivity"
-      }
-    ],
-    "userID": {
-      "_id": "user_id",
-      "username": "example_user"
-    }
+    "username": "harkirat",
+    "password": "Password1!"
   }
-]
-```
+  ```
+- **Constraints**:
+  - Username should be 3-10 letters
+  - Password should be 8-20 characters, with at least one uppercase letter, one lowercase letter, one special character, and one number
+- **Responses**:
+  - `200 OK`: User created successfully
+  - `411 Error`: Input validation failed
+  - `403 Forbidden`: User already exists
+  - `500 Error`: Server error
 
-**Error Response:**
+#### Sign In
+
+- **URL**: `POST /api/v1/signin`
+- **Body**:
+  ```json
+  {
+    "username": "harkirat",
+    "password": "Password1!"
+  }
+  ```
+- **Responses**:
+  - `200 OK`:
+    ```json
+    {
+      "token": "jwt_token_here"
+    }
+    ```
+  - `403 Forbidden`: Wrong username/password
+  - `500 Error`: Internal server error
+
+### Content Management
+
+#### Create Content
+
+- **URL**: `POST /api/v1/content`
+- **Headers**: `Authorization: Bearer jwt_token`
+- **Body**:
+  ```json
+  {
+    "type": "document",
+    "link": "https://example.com/article",
+    "title": "Interesting Article",
+    "tags": ["productivity", "tech"]
+  }
+  ```
+- **Note**: Valid types are "document", "tweet", "youtube", "link"
+
+#### Get All Content
+
+- **URL**: `GET /api/v1/content`
+- **Headers**: `Authorization: Bearer jwt_token`
+- **Response**:
+  ```json
+  {
+    "content": [
+      {
+        "id": "60d21b4667d0d8992e610c85",
+        "type": "document",
+        "link": "https://example.com",
+        "title": "Example Document",
+        "tags": ["productivity", "tech"]
+      }
+    ]
+  }
+  ```
+
+#### Delete Content
+
+- **URL**: `DELETE /api/v1/content`
+- **Headers**: `Authorization: Bearer jwt_token`
+- **Body**:
+  ```json
+  {
+    "contentId": "60d21b4667d0d8992e610c85"
+  }
+  ```
+- **Responses**:
+  - `200 OK`: Delete succeeded
+  - `403 Forbidden`: Trying to delete a document you don't own
+  - `404 Not Found`: Content not found
+
+### Sharing
+
+#### Create Share Link
+
+- **URL**: `POST /api/v1/brain/share`
+- **Headers**: `Authorization: Bearer jwt_token`
+- **Body**:
+  ```json
+  {
+    "share": true
+  }
+  ```
+- **Response**:
+  ```json
+  {
+    "link": "a1b2c3d4e5f6g7h8i9j0"
+  }
+  ```
+
+#### Access Shared Content
+
+- **URL**: `GET /api/v1/brain/:shareLink`
+- **Response**:
+  ```json
+  {
+    "username": "harkirat",
+    "content": [
+      {
+        "id": "60d21b4667d0d8992e610c85",
+        "type": "document",
+        "link": "https://example.com",
+        "title": "Example Document",
+        "tags": ["productivity", "tech"]
+      }
+    ]
+  }
+  ```
+- **Error Responses**:
+  - `404 Not Found`: If the share link is invalid or sharing is disabled
+
+## Testing Guide
+
+### Setting Up Postman
+
+1. Download and install [Postman](https://www.postman.com/downloads/)
+2. Create a new collection for Second Brain API
+3. Set up environment variables:
+   - `baseUrl`: `http://localhost:3000`
+   - `token`: (to be filled after sign-in)
+
+### Testing Authentication
+
+#### 1. Test User Registration
+
+- **Method**: POST
+- **URL**: `{{baseUrl}}/api/v1/signup`
+- **Body** (raw JSON):
 
 ```json
-// 500 - Server error
 {
-  "error": "Failed to fetch content"
-}
-
-// 401 - Authentication error
-{
-  "message": "Invalid token"
+  "username": "testuser",
+  "password": "TestPass1!"
 }
 ```
 
-### Create Content
+- Try variations with invalid passwords to test validation
 
-Add a new content item to your brain.
+#### 2. Test User Login
 
-**Endpoint:** `POST /api/v1/content`
-
-**Authentication:** Required
-
-**Request:**
+- **Method**: POST
+- **URL**: `{{baseUrl}}/api/v1/signin`
+- **Body** (raw JSON):
 
 ```json
 {
-  "title": "Interesting Article",
-  "link": "https://example.com/article",
-  "tags": ["tag_id_1", "tag_id_2"],
-  "userId": "user_id"
+  "username": "testuser",
+  "password": "TestPass1!"
 }
 ```
 
-**Response:**
+- Save the returned token to your environment variable `token`
+
+### Testing Content Management
+
+#### 3. Add Various Types of Content
+
+- **Method**: POST
+- **URL**: `{{baseUrl}}/api/v1/content`
+- **Headers**: Authorization: Bearer {{token}}
+- **Body for Document**:
 
 ```json
 {
-  "_id": "new_content_id",
-  "title": "Interesting Article",
-  "link": "https://example.com/article",
-  "tags": ["tag_id_1", "tag_id_2"],
-  "userID": "user_id"
+  "type": "document",
+  "link": "https://example.com/whitepaper.pdf",
+  "title": "Interesting Whitepaper",
+  "tags": ["research", "technology"]
 }
 ```
 
-**Error Response:**
-
-```json
-// 500 - Server error
-{
-  "error": "Failed to create content"
-}
-
-// 401 - Authentication error
-{
-  "message": "Invalid token"
-}
-```
-
-### Delete Content
-
-Remove a content item from your brain.
-
-**Endpoint:** `DELETE /api/v1/content`
-
-**Authentication:** Required
-
-**Request:**
+- **Body for YouTube**:
 
 ```json
 {
-  "title": "Interesting Article",
-  "link": "https://example.com/article",
-  "tags": ["tag_id_1", "tag_id_2"]
+  "type": "youtube",
+  "link": "https://youtube.com/watch?v=abcdefg",
+  "title": "How to Build a Second Brain",
+  "tags": ["productivity", "learning"]
 }
 ```
 
-**Response:**
+- **Body for Tweet**:
 
 ```json
 {
-  "acknowledged": true,
-  "deletedCount": 1
+  "type": "tweet",
+  "link": "https://twitter.com/username/status/123456789",
+  "title": "Insightful Tweet",
+  "tags": ["thoughts", "inspiration"]
 }
 ```
 
-**Error Response:**
+#### 4. Retrieve All Content
+
+- **Method**: GET
+- **URL**: `{{baseUrl}}/api/v1/content`
+- **Headers**: Authorization: Bearer {{token}}
+- Save one of the content IDs for the deletion test
+
+#### 5. Delete Content
+
+- **Method**: DELETE
+- **URL**: `{{baseUrl}}/api/v1/content`
+- **Headers**: Authorization: Bearer {{token}}
+- **Body**:
 
 ```json
-// 500 - Server error
 {
-  "error": "Failed to delete content"
-}
-
-// 401 - Authentication error
-{
-  "message": "Invalid token"
+  "contentId": "paste_content_id_here"
 }
 ```
 
-## Brain Sharing
+### Testing Sharing Functionality
 
-### Share Brain
+#### 6. Create Share Link
 
-Create a shareable link for your brain content.
-
-**Endpoint:** `POST /api/v1/brain/share`
-
-**Authentication:** Required
-
-**Request:**
+- **Method**: POST
+- **URL**: `{{baseUrl}}/api/v1/brain/share`
+- **Headers**: Authorization: Bearer {{token}}
+- **Body**:
 
 ```json
 {
@@ -251,91 +304,71 @@ Create a shareable link for your brain content.
 }
 ```
 
-**Response:**
+- Save the returned share link
+
+#### 7. Access Shared Brain
+
+- **Method**: GET
+- **URL**: `{{baseUrl}}/api/v1/brain/paste_share_link_here`
+- No authentication needed - this simulates accessing as a visitor
+
+#### 8. Disable Sharing
+
+- **Method**: POST
+- **URL**: `{{baseUrl}}/api/v1/brain/share`
+- **Headers**: Authorization: Bearer {{token}}
+- **Body**:
 
 ```json
 {
-  "link": "link_to_open_brain"
+  "share": false
 }
 ```
 
-**Error Response:**
+#### 9. Verify Sharing is Disabled
 
-```json
-// 401 - Authentication error
-{
-  "message": "Invalid token"
-}
+- **Method**: GET
+- **URL**: `{{baseUrl}}/api/v1/brain/paste_share_link_here`
+- Should return 404 error
 
-// 500 - Server error
-{
-  "error": "Failed to create share link"
-}
-```
+## Error Handling
 
-### Access Shared Brain
+The API uses standard HTTP status codes:
 
-Access another user's shared brain content using their share link.
+- `200`: Success
+- `201`: Resource created successfully
+- `400`: Bad request (client error)
+- `401/403`: Authentication or authorization error
+- `404`: Resource not found
+- `411`: Validation error
+- `500`: Server error
 
-**Endpoint:** `GET /api/v1/brain/:shareLink`
+## Database Schema
 
-**Authentication:** Not required
+The application uses four main collections:
 
-**Response:**
+### Users
 
-```json
-{
-  "username": "example_user",
-  "content": [
-    {
-      "id": "content_id",
-      "type": "document",
-      "link": "https://example.com/document",
-      "title": "Example Document",
-      "tags": ["productivity", "research"]
-    },
-    {
-      "id": "content_id_2",
-      "type": "youtube",
-      "link": "https://youtube.com/watch?v=example",
-      "title": "Helpful Tutorial",
-      "tags": ["tutorial", "coding"]
-    }
-  ]
-}
-```
+- `username`: String (unique, 3-10 characters)
+- `password`: String (hashed)
+- `createdAt`: Date
 
-**Error Response:**
+### Content
 
-```json
-// 404 - Invalid share link
-{
-  "error": "Share link not found or sharing is disabled"
-}
+- `title`: String
+- `link`: String
+- `type`: String (enum: "document", "tweet", "youtube", "link")
+- `tags`: Array of references to Tags
+- `userID`: Reference to User
+- `createdAt`: Date
 
-// 500 - Server error
-{
-  "error": "Failed to fetch shared content"
-}
-```
+### Tags
 
-## Content Types
+- `name`: String (unique)
 
-The Brain App supports several content types:
+### Shares
 
-- `document`: Text-based documents
-- `tweet`: Twitter/X posts
-- `youtube`: YouTube videos
-- `link`: General web links/URLs
-
-## Development Setup
-
-1. Clone the repository
-2. Install dependencies: `npm install`
-3. Set up environment variables in `.env` file:
-   ```
-   PORT=3000
-   MONGO_URI=your_mongodb_connection_string
-   JWT_SECRET=your_jwt_secret
-   ```
-4. Start the development server: `npm run dev`
+- `userId`: Reference to User
+- `shareLink`: String (unique)
+- `isActive`: Boolean
+- `createdAt`: Date

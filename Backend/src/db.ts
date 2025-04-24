@@ -11,13 +11,15 @@ export const connectToDB = async () => {
   }
 };
 
-// User Schema
 const UserSchema = new Schema({
   username: {
     type: String,
     required: true,
     unique: true,
     trim: true,
+    minlength: 3,
+    maxlength: 10,
+    index: true,
   },
   password: {
     type: String,
@@ -29,7 +31,8 @@ const UserSchema = new Schema({
   },
 });
 
-// Content Schema (assuming this is what you have)
+UserSchema.index({ username: 1 });
+
 const ContentSchema = new Schema({
   title: {
     type: String,
@@ -38,6 +41,11 @@ const ContentSchema = new Schema({
   link: {
     type: String,
     required: true,
+  },
+  type: {
+    type: String,
+    required: true,
+    enum: ["document", "tweet", "youtube", "link"],
   },
   tags: [
     {
@@ -49,6 +57,7 @@ const ContentSchema = new Schema({
     type: Schema.Types.ObjectId,
     ref: "User",
     required: true,
+    index: true,
   },
   createdAt: {
     type: Date,
@@ -56,36 +65,45 @@ const ContentSchema = new Schema({
   },
 });
 
-// Tag Schema (assuming this is what you have)
+// Create compound index for userID and title
+ContentSchema.index({ userID: 1, title: 1 });
+
 const TagSchema = new Schema({
   name: {
     type: String,
     required: true,
     unique: true,
+    index: true,
   },
 });
 
-// Share Schema (new)
+TagSchema.index({ name: 1 });
+
 const ShareSchema = new Schema({
   userId: {
     type: Schema.Types.ObjectId,
     ref: "User",
     required: true,
+    index: true,
   },
   shareLink: {
     type: String,
     required: true,
     unique: true,
+    index: true,
   },
   isActive: {
     type: Boolean,
     default: true,
+    index: true,
   },
   createdAt: {
     type: Date,
     default: Date.now,
   },
 });
+
+ShareSchema.index({ shareLink: 1, isActive: 1 });
 
 export const UserModel = mongoose.model("User", UserSchema);
 export const ContentModel = mongoose.model("Content", ContentSchema);
